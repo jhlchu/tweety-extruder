@@ -24,6 +24,7 @@ draw_idler = true;
 draw_axle = true;
 draw_fan_mount = true;
 endstop_bumper = 8;
+nozzle_stabilizer = false;
 
 carriage_pos = [16.5,0,-24]; // for the universal GT2 carriage
 
@@ -37,7 +38,6 @@ gear_r = gear_diam/2;
 
 below_motor_height = 11;
 above_motor_height = 7;
-bot_lower = 16.25;
 bottom_height = below_motor_height + above_motor_height;
 bottom_width = 38;
 bot_offset_x = mw2 - bottom_width / 2;
@@ -234,7 +234,7 @@ module extruder_body() {
     }
 
     // Nozzle Hole
-    translate([bot_offset_x+fil_r/2,0,-bottom_height-bot_lower+hole_depth])
+    translate([bot_offset_x+fil_r/2,0,-block_height/2-below_motor_height/2+hole_depth])
       groovemount_cutouts();
 
   } // difference
@@ -262,6 +262,32 @@ module extruder_standoffs() {
       }
     }
   }
+
+  if (nozzle_stabilizer) {
+    difference() {
+      translate([0,sd2+hotend_r/2,-17])
+        cube([hotend_diam+6,standoff_distance+hotend_r,6], r=2, center=true);
+      translate(filament_pos) the_nozzle();
+    }
+
+    rotate([90,0,0]) {
+      translate([0,0,-sd2]) {
+        hull() { // bottom-left to stabilizer
+          translate(mount_holes[1]) translate([0,0,z]) cylinder(r=hole_3mm+2.5, h=h, center=true);
+          translate([5,-16,0]) translate([0,0,z]) cylinder(r=hole_3mm+2, h=h, center=true);
+        }
+        hull() { // bottom-left to stabilizer
+          translate(mount_holes[2]) translate([0,0,z]) cylinder(r=hole_3mm+2.5, h=h, center=true);
+          translate([-5,-16,0]) translate([0,0,z]) cylinder(r=hole_3mm+2, h=h, center=true);
+        }
+        hull() { // bottom-left to stabilizer
+          translate(mount_holes[1]) translate([0,0,z]) cylinder(r=hole_3mm, h=h, center=true);
+          translate(mount_holes[2]) translate([0,0,z]) cylinder(r=hole_3mm, h=h, center=true);
+        }
+      }
+    }
+  }
+
 }
 
 module carriage_holes() {
@@ -484,8 +510,8 @@ module fan_mount(mode=3) {
 
       // Extender
       translate([-mid+0.1,0,-2.3]) rotate([0,-90,0]) {
-        cube([6.2, cylw, fan_mount_thickness], center=true);
-        rotate([0,10,0]) cube([6.2, cylw, fan_mount_thickness], center=true);
+        cube([7.5, cylw, fan_mount_thickness], center=true);
+        translate([0,0,1.25]) rotate([0,18,0]) cube([7.5, cylw, fan_mount_thickness], center=true);
       }
       translate([-mid-1.3,0,-4.4]) rotate([0,-72+32,0]) cube([2, cylw, 2.5], center=true);
       translate([-mid-0.3,0,-4.4]) rotate([0,-20,0]) cube([2, cylw, 2], center=true);
@@ -508,7 +534,7 @@ module fan_mount(mode=3) {
           }
         }
         for (x=[-1,1]) {
-          translate([0,x*20,0]) cylinder(r=hole_3mm, h=ht2+0.1, center=true);
+          translate([0,x*20,0]) cylinder(r=hole_3mm, h=ht2*2+0.1, center=true);
           translate([2,x*(cylw+ht2+0.4)/2,cylr+fan_mount_thickness/2+0.5]) rotate([90,0,0]) {
             cylinder(r=hole_3mm, h=ht2+0.1, center=true);
             if (x==1 && ht2 > 3) translate([0,0,-ht2/2-0.1]) rotate([0,0,22.5]) cylinder(r=hole_3mm+1.5, h=1.5, $fn=6);
