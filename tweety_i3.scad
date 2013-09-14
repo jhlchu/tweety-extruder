@@ -39,7 +39,7 @@ gear_r = gear_diam/2;
 below_motor_height = 11;
 above_motor_height = 7;
 bottom_height = below_motor_height + above_motor_height;
-bottom_width = 38;
+bottom_width = 36;
 bot_offset_x = mw2 - bottom_width / 2;
 bottom_pos = [bot_offset_x,-sd2,-motor_height/2-bottom_height/2+above_motor_height];
 
@@ -143,7 +143,7 @@ if (draw_assembled) {
           translate(bearing_in_block_pos) idler_holes();
           translate(clamp_in_block_pos) clamp_holes();
         }
-        translate(bearing_in_block_pos) idler_support();
+        idler_support();
       }
 
     if (draw_clamp)
@@ -234,7 +234,7 @@ module extruder_body() {
     }
 
     // Nozzle Hole
-    translate([bot_offset_x+fil_r/2,0,-block_height/2-below_motor_height/2+hole_depth])
+    translate(fil_in_block_pos + [0,0,-block_height/2-below_motor_height/2+hole_depth])
       groovemount_cutouts();
 
   } // difference
@@ -304,7 +304,7 @@ module motor_holes() {
   // Motor Holes
   translate([0,bt2]) rotate([90,-90,0]) // center on the front surface of the block
   for (x=[-1,1])
-    translate([x*motor_hole_dist/2,-motor_hole_dist/2,bt2-10+10])
+    translate([x*motor_hole_dist/2,-motor_hole_dist/2,bt2-10+20])
       rotate([0,180,0]) {
         hole_with_trap(r=hole_3mm, h=100);
       }
@@ -402,17 +402,24 @@ module idler_axle_cutout() {
 
 module idler_holes() {
 
+  idler_simple_axle = true;
+
   // Axle hole+trap with added recess
   rotate([90,0,90])
     translate([0,0,-idler_axle_offset - (idler_depth-hinge_depth)/2])
       translate([0,-idler_base_height/2+0.4] + [0,-(hinge_length-idler_depth/4-1.25)] + [-thicken_block/2,0])
         rotate([0,90,0]) {
-          translate([0,0,-total_thickness/2+5]) rotate([0,0,30]) hole_with_trap(r1=hole_3mm, r2=nut_3mm, h=45);
-          translate([0,0,total_thickness/2-2.5/2]) cylinder(r=nut_3mm, h=2.55, center=true);
+          if (idler_simple_axle) {
+            cylinder(r=hole_3mm, h=total_thickness+1, center=true);
+          }
+          else {
+            translate([0,0,-total_thickness/2+5]) rotate([0,0,30]) hole_with_trap(r1=hole_3mm, r2=nut_3mm, h=45);
+            translate([0,0,total_thickness/2-2.5/2]) cylinder(r=nut_3mm, h=2.55, center=true);
+          }
         }
 
   // Idler top grooves and nut traps
-  rotate([0,90,0]) assign(hh=draw_assembled?6.05:5.5) {
+  rotate([0,90,0]) assign(hh=draw_assembled?motor_height/2-16+0.05:motor_height/2-16+0.05-0.75) {
     for (y=[-1,1]) translate([-(idler_base_height + 2.5)/2,(fil_r+radius3mm+2.5)*y]) {
       cylinder(r=hole_3mm, h=45, center=true);
       translate([-hh/2,0]) cube([hh,hole_3mm*2,36], center=true);
@@ -425,24 +432,30 @@ module idler_holes() {
 }
 
 module idler_support() {
-  ihp = [-hinge_offset,-idler_base_height/2-hinge_length/2-2,-idler_axle_offset-2];
-
-  rotate([90,0,90])
-    translate([-hinge_offset,-idler_base_height/2-hinge_length/2-0.25,-idler_axle_offset-1.75])
-      rotate([0,90]) {
-        translate([0,0,hw/2+0.3/2])
-          cylinder(r=hole_3mm+2, h=0.3, center=true);
-      }
+  translate(bearing_in_block_pos) {  
+    rotate([90,0,90])
+      translate([-hinge_offset,-idler_base_height/2-hinge_length/2-0.25,-idler_axle_offset-1.75])
+        rotate([0,90]) {
+          translate([0,0,hw/2+0.3/2])
+            cylinder(r=hole_3mm+2, h=0.3, center=true);
+        }
+  }
 
   // A partial curve to support the back wall of the idler hinge gap
-  rotate([90,0,90])
-    translate(ihp + [(hw+0.3)/2,-0.6,1.25])
-      rotate([0,90])
-        translate([bottom_width-35.15,above_motor_height/2-0.7,-hw/2]) // x moves with bottom_width, y with above_bottom
-          intersection() {
-            hollow_cylinder(r1=4,r2=4-0.7,h=hw+0.5,center=true);
-            translate([4,4]) cube([8,8,hw+0.5],center=true);
-          }
+  // based on extruder body bottom part
+  //
+  // translate(bottom_pos) rotate([90,0])
+  //   rounded_cube([bottom_width,bottom_height,thik], r=4, center=true);
+
+  // For accuracy use the bottom block as the corner support
+  translate(bottom_pos) rotate([90,0]) {
+    difference() {
+      rounded_cube([bottom_width,bottom_height,total_thickness-6], r=4, center=true);
+      rounded_cube([bottom_width-0.8,bottom_height-0.8,total_thickness+1], r=4, center=true);
+      translate([5,0,0]) cube([bottom_width,bottom_height+1,total_thickness+1], center=true);
+      translate([0,-5,0]) cube([bottom_width+1,bottom_height,total_thickness+1], center=true);
+    }
+  }
 }
 
 

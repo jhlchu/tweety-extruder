@@ -8,7 +8,7 @@ radius8mm = 4.0;
 hole_3mm = radius3mm + hole_slop;
 hole_4mm = radius4mm + hole_slop;
 hole_8mm = radius8mm + hole_slop;
-nut_3mm = radius3mm * 2 + hole_slop + 0.25;
+nut_3mm = radius3mm * 2 + hole_slop + 0.1;
 nut_4mm = radius4mm * 2 + hole_slop;
 nut_8mm = radius8mm * 2 + hole_slop;
 
