@@ -23,6 +23,7 @@ draw_clamp = true;
 draw_idler = true;
 draw_axle = true;
 draw_fan_mount = true;
+draw_fan_duct = true;
 endstop_bumper = 8;
 nozzle_stabilizer = false;
 
@@ -84,7 +85,8 @@ hinge_depth = idler_depth - 4;
 hinge_offset = 0;
 hw = hinge_width + 0.5;
 
-fan_mount_thickness = 4.0;
+fan_mount_thickness = 2.0;
+fan_duct_base = 2.0;
 
 //
 // Assembled and printable rendering
@@ -109,8 +111,8 @@ if (draw_assembled) {
       translate(block_pos) { // motor and body move around the filament & gear, nozzle top
         extruder_body();
         translate(clamp_in_block_pos) extruder_clamp();
-        if (draw_fan_mount)
-          translate(clamp_in_block_pos + [0,clamp_front_depth + fan_mount_thickness + 0.5,0])
+        if (draw_fan_mount || draw_fan_duct)
+          translate(clamp_in_block_pos + [0,clamp_front_depth + fan_mount_thickness - 0.8,0])
             rotate([180,-90,-90])
               fan_mount();
         translate(bearing_in_block_pos) idler_body();
@@ -132,7 +134,7 @@ if (draw_assembled) {
   translate([-40,-10]) {
 
     if (draw_body)
-      translate([0,0,total_thickness/2+sd2]) rotate([90,0]) {
+      translate([0,draw_fan_duct ? -35 : -10,total_thickness/2+sd2]) rotate([90,0]) {
         difference() {
           union() {
             extruder_body();
@@ -162,13 +164,15 @@ if (draw_assembled) {
         }
       }
 
-    if (draw_fan_mount) translate([50,-25,fan_mount_thickness/2]) {
+    if (draw_fan_mount || draw_fan_duct) translate([50,-15,fan_mount_thickness/2]) {
       rotate([0,0,90]) {
-        rotate([0,180,180]) difference() {
-          fan_mount(mode=1);
-          rotate([90,180,90]) clamp_holes();
+        if (draw_fan_mount) {
+          rotate([0,180,0]) difference() {
+            fan_mount(mode=1);
+            rotate([90,180,90]) clamp_holes();
+          }
         }
-        translate([hole_depth+1,0,0]) rotate([0,-35,0]) fan_mount(mode=2);
+        translate([-hole_depth-1,0,0]) fan_mount(mode=2);
       }
     }
   }
@@ -294,7 +298,7 @@ module carriage_holes() {
   // Carriage-aligned holes and nut traps
   translate([0,bt2+sd2,0]) // center on the bulk mass
   rotate([90,0,0]) {
-    for (v=mount_holes) translate(v) cylinder(r=hole_3mm, h=100, center=true);
+    for (v=mount_holes) translate(v) cylinder(r=hole_3mm, h=40, center=true);
     for (p=[[0,-10,6],[1,-1.5,18],[2,-1.5,18]]) assign(q=mount_holes[p[0]])
       translate([q[0],q[1],p[1]]) rotate([0,0,30]) cylinder(r=nut_3mm, h=block_thickness+standoff_distance+0.1, center=true, $fn=p[2]);
   }
@@ -514,52 +518,128 @@ module fan_mount(mode=3) {
   do_part1 = mode % 2 > 0;
   do_part2 = mode > 1;
   mid = (hole_depth-fan_mount_thickness)/2;
+  hinge_dist = (cylw+ht2+0.4)/2;
+  part1_hole_offset = [-mid-1.5,0,-8];
+  part2_hole_offset = [2,0,cylr+fan_mount_thickness/2+0.5 + (draw_fan_duct ? 3 : 0)];
+  fan_angle = mode==3 ? 0 : 0;
 
   // Hinge for the Prusa
   if (do_part1) difference() {
     union() {
-      // part that connects to the bolts
+      // mount base
       rounded_cube([hole_depth-hole_slop, wide + 2, fan_mount_thickness], r=hole_depth/2-1, center=true);
 
-      // Extender
+      // mount axle
       translate([-mid+0.1,0,-2.3]) rotate([0,-90,0]) {
-        cube([7.5, cylw, fan_mount_thickness], center=true);
-        translate([0,0,1.25]) rotate([0,18,0]) cube([7.5, cylw, fan_mount_thickness], center=true);
+        cube([fan_mount_thickness+3.5, cylw, fan_mount_thickness], center=true);
+        translate([0,0,1.25]) rotate([0,30-fan_mount_thickness*3,0]) cube([fan_mount_thickness+3.5, cylw, fan_mount_thickness], center=true);
       }
-      translate([-mid-1.3,0,-4.4]) rotate([0,-72+32,0]) cube([2, cylw, 2.5], center=true);
       translate([-mid-0.3,0,-4.4]) rotate([0,-20,0]) cube([2, cylw, 2], center=true);
-      translate([-mid-1.5,0,-8]) rotate([90,0,0]) hollow_cylinder(r2=hole_3mm, r1=cylr, h=cylw-0.2, center=true);
+      translate(part1_hole_offset) rotate([90,0,0]) hollow_cylinder(r2=hole_3mm, r1=cylr, h=cylw-0.2, center=true);
     }
   }
 
   // Connect to the fan
-  if (do_part2) translate(draw_assembled ? [-mid-7,0,-12.4] : [0,0,0]) {
-    rotate([0,35,0]) {
-      difference() {
-        union() {
-          rounded_cube([cylr*2,40+4.1*2,fan_mount_thickness], r=4.1, center=true);
+  if (do_part2) {
+    translate(draw_assembled ? part1_hole_offset : [0,0,0]) {
+      rotate([0,fan_angle,0]) translate(draw_assembled ? -part2_hole_offset : [0,0,0]) {
+        difference() {
+          union() {
+            // hinge base solid
+            difference() {
+              // +
+              rounded_cube([cylr*2,40+4.1*2,fan_mount_thickness], r=4.1, center=true);
+              if (draw_fan_duct) {
+                // -
+                translate([-25+5,0,-fan_duct_base/2]) fan_duct_hole();
+                translate([-25+5,0,fan_duct_base/2]) fan_duct_hole();
+              }
+            }
+            // + hinge axle solid
+            for (x=[-1,1]) {
+              translate(part2_hole_offset+[0,x*hinge_dist,0]) {
+                rotate([90,0,0]) cylinder(r=cylr, h=ht2, center=true);
+                if (draw_fan_duct) {
+                  assign(pz=2.75) translate([-0.75,0,-cylr/2-1+1.5]) rotate([0,25,0]) translate([0,0,-pz/2]) cube([cylr*2,ht2,cylr+pz], center=true);
+                }
+                else {
+                  assign(pz=2) translate([-1,0,-cylr/2-pz/2]) cube([cylr*2-2,ht2,cylr+pz], center=true);
+                }
+              }
+            }
+            // Duct, if included
+            if (draw_fan_duct) translate([-25+5,0,0]) fan_duct();
+          }
+
+          // -
           for (x=[-1,1]) {
-            // translate([0,x*20,0]) cylinder(r=cylr, h=fan_mount_thickness, center=true);
-            translate([2,x*(cylw+ht2+0.4)/2,cylr+fan_mount_thickness/2+0.5]) {
-              rotate([90,0,0]) cylinder(r=cylr, h=ht2, center=true);
-              translate([-1,0,-cylr/2-1]) cube([cylr*2-2,ht2,cylr+2], center=true);
+            // hinge base holes
+            translate([0,x*20,0]) cylinder(r=hole_3mm, h=ht2*2+0.1, center=true);
+            // hinge axle holes
+            translate(part2_hole_offset+[0,x*hinge_dist,0]) rotate([90,0,0]) {
+              // screw hole
+              cylinder(r=hole_3mm, h=ht2+0.1, center=true);
+              // nut inset (only on one side)
+              if (x==1 && ht2 > 3) translate([0,0,-ht2/2-0.1]) rotate([0,0,22.5]) cylinder(r=hole_3mm+1.5, h=1.5, $fn=6);
             }
           }
         }
-        for (x=[-1,1]) {
-          translate([0,x*20,0]) cylinder(r=hole_3mm, h=ht2*2+0.1, center=true);
-          translate([2,x*(cylw+ht2+0.4)/2,cylr+fan_mount_thickness/2+0.5]) rotate([90,0,0]) {
-            cylinder(r=hole_3mm, h=ht2+0.1, center=true);
-            if (x==1 && ht2 > 3) translate([0,0,-ht2/2-0.1]) rotate([0,0,22.5]) cylinder(r=hole_3mm+1.5, h=1.5, $fn=6);
-          }
-        }
+        // Dummy fan
+        if (draw_assembled) translate([-20,0,-(12+fan_mount_thickness)/2]) %fan_dummy();
       }
-      // Dummy fan
-      if (draw_assembled) translate([-20,0,-(12+fan_mount_thickness)/2]) %fan_dummy();
     }
   }
 
 }
+
+module fan_duct() {
+  wall_t = 1.6;
+  wall_t2 = 2 * wall_t;
+  bottom_blower_width = 20;
+  bottom_blower_height = 3;
+  bottom_blower_angle = -25;
+  bottom_blower_length = 23;
+  bottom_blower_lower = 5;
+  top_blower_width = 2.5;
+  top_blower_height = 20;
+  top_blower_roof = 20;
+  top_blower_angle = -10;
+  top_blower_length = 22 - abs(top_blower_angle) / 5.5;
+
+  difference() {
+    rounded_cube([50,50,fan_duct_base], r=2, center=true);
+    fan_duct_hole();
+    for (x=[-1,1]) translate([-20,x*20,0]) cylinder(r=hole_3mm, h=fan_duct_base+0.1, center=true);
+  }
+  difference() {
+    union() {
+      // below nozzle blower body
+      hull() {
+        cylinder(r=25, h=fan_duct_base, center=true, $fn=72);
+        translate([-25-bottom_blower_lower,0,bottom_blower_length]) rotate([0,bottom_blower_angle,0]) rounded_cube([bottom_blower_height+wall_t2,bottom_blower_width+wall_t2,1], r=2, center=true);
+      }
+      // heat barrier blower body
+      hull() {
+        rounded_cube([35,46,1], r=8, center=true);
+        translate([0,0,top_blower_length]) rotate([0,-top_blower_angle,0]) rounded_cube([top_blower_roof+wall_t2,top_blower_width+wall_t2,1], r=2, center=true);
+      }
+    }
+    // below nozzle blower hole
+    hull() {
+      translate([0,0,-0.1]) cylinder(r=25-wall_t, h=fan_duct_base, center=true, $fn=72);
+      translate([-25-bottom_blower_lower,0,bottom_blower_length]) rotate([0,bottom_blower_angle,0]) rounded_cube([bottom_blower_height,bottom_blower_width,1.1], r=1, center=true);
+    }
+    // heat barrier blower hole
+    hull() {
+      rounded_cube([35,46,1.1]-[2,2,0], r=8, center=true);
+      translate([0,0,top_blower_length]) rotate([0,-top_blower_angle,0]) translate([(top_blower_roof-top_blower_height)/2,0,0]) rounded_cube([top_blower_height,top_blower_width,1.1], r=0.5, center=true);
+    }
+  }
+}
+module fan_duct_hole() {
+  cylinder(r=25-1, h=fan_duct_base+0.1, center=true);
+}
+
 
 //
 // Placeholder Objects
@@ -595,7 +675,7 @@ module motor_dummy() {
 module fan_dummy() {
   difference() {
     rounded_cube([50, 50, 12], r=2, center=true);
-    cylinder(r=22, h=12.1, center=true);
+    cylinder(r=25-1, h=12.1, center=true);
     for(x=[-1,1],y=[-1,1],z=[-1,1]) translate([x*20,y*20,z*2-1]) cylinder(r=hole_3mm-z+1, h=12.1, center=true);
   }
 }
